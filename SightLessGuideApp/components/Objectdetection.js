@@ -30,6 +30,7 @@ function Objectdetection({ navigation }) {
   const listeningIntervalRef = useRef(null); // To store interval reference
   const photoIntervalRef = useRef(null); // To store photo-taking interval reference
   const cameraRef = useRef(null);
+  const [extraCommand, setExtraCommand] = useState('');
   const {
     hasPermission: cameraPermission,
     requestPermission: requestCameraPermission,
@@ -41,7 +42,9 @@ function Objectdetection({ navigation }) {
   const cameraDevice = useCameraDevice('back');
   const [loading, setLoading] = useState(true);
   var check;
+
   useEffect(() => {
+    console.log({ cameraPermission, microphonePermission });
     if (!cameraPermission) {
       requestCameraPermission();
     }
@@ -58,7 +61,6 @@ function Objectdetection({ navigation }) {
 
   const startListening = async () => {
     try {
-      console.log('Starting voice recognition...');
       await Voice.start('en-GB');
       setIsListening(true);
     } catch (err) {
@@ -72,56 +74,67 @@ function Objectdetection({ navigation }) {
       await Voice.stop();
       await Voice.cancel();
       setIsListening(false);
-      console.log('Stopping voice recognition...');
     } catch (err) {
       console.error('Error stopping voice recognition: ', err);
     }
   };
 
   const onSpeechResults = e => {
-    console.log('i am on screen1 object');
-    console.log('Speech results: ', e);
     if (e.value && e.value.length > 0) {
       const spokenText = e.value[0].toLowerCase();
-      console.log('Detected speech:', spokenText);
-
       if (spokenText === 'scanner') {
-        console.log('Navigating to Textscanner screen...');
         Tts.stop();
-
         navigation.navigate('Textscanner');
       }
-      if (spokenText === 'help') {
-        console.log('Navigating to Google screen...');
+      else if (spokenText === 'help') {
         Tts.stop();
-
         navigation.navigate('Emergencycontact');
       }
-      if (spokenText === 'currency detection') {
+      else if (spokenText === 'currency detection') {
         Tts.stop();
-
         navigation.navigate('currency');
       }
-      if (spokenText === 'location') {
+      else if (spokenText === 'location') {
         Tts.stop();
-
         navigation.navigate('Navigation');
       }
-      if (spokenText === 'weather') {
+      else if (spokenText === 'weather') {
         Tts.stop();
         navigation.navigate('LocationWeather');
       }
-      
-
+      else if (spokenText.startsWith('add')) {
+        if (photoIntervalRef.current) {
+          clearInterval(photoIntervalRef.current);
+          photoIntervalRef.current = null;
+        }
+        Tts.stop();
+        const name = spokenText.replace('add', '').trim();
+      addFace(name);
+      }
+      else if (spokenText === 'find who') {
+        if (photoIntervalRef.current) {
+          clearInterval(photoIntervalRef.current);
+          photoIntervalRef.current = null;
+        }
+        Tts.stop();
+        recognizeFace();
+      }
+      else {
+        setExtraCommand(spokenText);
+      }
     }
   };
 
   const onSpeechEnd = () => {
     setIsListening(false);
-    console.log('Speech recognition ended');
   };
 
-  const takePhoto = async () => {
+  const addFace = async (name) => {
+    setExtraCommand("");
+    console.log("ADD FACE");
+    Tts.speak('Stand still while we take your photo');
+    // startListening();
+    await setTimeout(() => {}, 500);
     if (cameraRef.current) {
       const photo = await cameraRef.current.takePhoto({
         qualityPrioritization: 'speed',
@@ -130,6 +143,53 @@ function Objectdetection({ navigation }) {
       });
 
       const imageUri = `file://${photo.path}`;
+      Tts.speak('Photo taken');
+      startListening();
+      // setTimeout(() => {
+      //   stopListening();
+      //   if (extraCommand.length > 0) {
+          Tts.speak('Ok, Adding as '+name)
+          const formData = new FormData();
+          formData.append('file', {
+            uri: imageUri,
+            name: 'image.jpg',
+            type: 'image/jpg',
+          });
+          formData.append('name', name ?? "Unknown");
+          try {
+            const response = axios.post(
+              'http://192.168.1.11:5000/add_face',
+              formData,
+              {
+                headers: {
+                  'Content-Type': 'multipart/form-data',
+                },
+              }
+            ).then(response => {
+              console.log(response.data);
+              Tts.speak('Face added');
+            });
+          } catch (error) {
+            console.error('Error uploading image:', JSON.stringify(error));
+          }
+        } else {
+          Tts.speak('No name provided. Please try again later');
+        }
+      // }, 3000);
+    // }
+  };
+
+  const recognizeFace = async () => {
+    console.log("recognize??");
+    if (cameraRef.current) {
+      const photo = await cameraRef.current.takePhoto({
+        qualityPrioritization: 'speed',
+        flash: 'off',
+        enableShutterSound: false,
+      });
+
+      const imageUri = `file://${photo.path}`;
+      console.log({ imageUri });
       const formData = new FormData();
       formData.append('file', {
         uri: imageUri,
@@ -139,7 +199,7 @@ function Objectdetection({ navigation }) {
 
       try {
         const response = await axios.post(
-          'http://192.168.254.121:5000/predict',
+          'http://192.168.1.11:5000/recognize_face',
           formData,
           {
             headers: {
@@ -147,20 +207,66 @@ function Objectdetection({ navigation }) {
             },
           }
         );
-        console.log('Predictions:', response.data.predictions);
-        const res = response.data.predictions.toString();        
-        if (res !== check) {
-          check=res;
+        console.log(response.data.message);
+        const res = response.data.message
+        // if (res !== check) {
+        //   check=res;
 
           Tts.speak(res);
-        } else {
-          console.log('Response is the same as the previous one. No need to speak.');
-        }
+        // } else {
+        //   console.log('Response is the same as the previous one. No need to speak.');
+        // }
       } catch (error) {
         console.log('Error uploading image:', error);
       }
     }
   };
+
+  const takePhoto = async () => {
+    console.log("takephoto??");
+    if (cameraRef.current) {
+      const photo = await cameraRef.current.takePhoto({
+        qualityPrioritization: 'speed',
+        flash: 'off',
+        enableShutterSound: false,
+      });
+
+      const imageUri = `file://${photo.path}`;
+      console.log({ imageUri });
+      const formData = new FormData();
+      formData.append('file', {
+        uri: imageUri,
+        name: 'image.jpg',
+        type: 'image/jpg',
+      });
+
+      try {
+        const response = await axios.post(
+          'http://192.168.1.11:5000/predict',
+          formData,
+          {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          }
+        );
+        const predictions = response.data.predictions.toString();
+        const caption = response.data.caption;
+        console.log(response.data);
+        if (predictions || caption) {
+          // check=res;
+
+          Tts.speak(`Objects are ${predictions} and the sample caption is ${caption}`);
+        } else {
+          console.log(res, check)
+          console.log('Response is the same as the previous one. No need to speak.');
+        }
+      } catch (error) {
+        console.log('Error uploading image:', JSON.stringify(error));
+      }
+    }
+  };
+
   useEffect(() => {
     const requestPermission = async () => {
       if (Platform.OS === 'android') {
@@ -196,7 +302,7 @@ function Objectdetection({ navigation }) {
 
       photoIntervalRef.current = setInterval(() => {
         takePhoto();
-      }, 5000);
+      }, 10000);
     } else {
       if (listeningIntervalRef.current) {
         clearInterval(listeningIntervalRef.current);
@@ -226,7 +332,7 @@ function Objectdetection({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>Object Detectiont</Text>
+      <Text style={styles.text}>Object Detection</Text>
       {isListening ? <Text>Listening...</Text> : <Text>Not Listening</Text>}
       {loading ? (
         <Text>Loading...</Text>
@@ -243,7 +349,6 @@ function Objectdetection({ navigation }) {
           style={styles.camera}
           device={cameraDevice}
           isActive={true}
-          // torch="on"
         />
       )}
     </View>

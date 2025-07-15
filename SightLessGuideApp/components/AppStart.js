@@ -27,7 +27,7 @@ const AppStart = ({navigation}) => {
 
       <View style={{paddingHorizontal: 20, paddingTop: 20}}>
         <View>
-          <Text style={style.title}>Welcome to SlightLessGuide</Text>
+          <Text style={style.title}>Welcome to Mio-Oculus</Text>
           <Text style={style.title}>Your Ultimate Life Companion</Text>
         </View>
 

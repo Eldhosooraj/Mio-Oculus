@@ -14,10 +14,9 @@ import {
 
 const Instructions = ({navigation}) => {
   const handleHelpPress = () => {
-    const email1 = 'janjuasoban71@gmail.com';
-    const email2 = 'niazinajiullah@gmail.com';
+    const emails = ['adhilsalam200@gmail.com','eldhosoorajgeorge04@gmail.com', 'adhensarageorge06@gmail.com','angelelizabethgeorge22@gmail.com' ]
     Linking.openURL(
-      `mailto:${email1},${email2}?subject=Need Help&body=Please provide details of your issue here.`,
+      `mailto:${emails.concat(',')}?subject=Help!!!&body=Please provide details of your issue here.`,
     );
   };
 
@@ -47,8 +46,7 @@ const Instructions = ({navigation}) => {
           <Text style={style.instructionText}>
             <Text style={style.step}>Step 2: </Text>
             After successful registration, you will be taken to the Object
-            Detection screen. The app can detect up to 80 different types of
-            objects.
+            Detection screen. 
           </Text>
         </View>
 
@@ -64,7 +62,7 @@ const Instructions = ({navigation}) => {
           <Text style={style.instructionText}>
             <Text style={style.step}>Step 4: </Text>
             The app includes features like object detection, text detection with
-            a double-tap, emergency calls, Pakistani currency detection, and a
+            a double-tap, emergency calls and a
             real-time navigation system.
           </Text>
         </View>

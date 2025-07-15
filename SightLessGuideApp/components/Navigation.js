@@ -98,7 +98,50 @@ const Navigation = ({navigation}) => {
             setDestinationFromVoice(destinationText);
 
             // Trigger function to calculate and display route
-            handleGetDirections();
+            // handleGetDirections();
+
+            console.log('origin indo?', origin);
+
+            const directionsService = new MapViewDirections({
+              origin: {latitude: 10.1079, // Use origin's latitude if available
+                longitude: 76.4489,},
+              destination: {
+                latitude: location.lat,
+                longitude: location.lng,
+              },
+              apikey: GOOGLE_MAPS_APIKEY,
+              mode: 'WALKING',
+              language: 'en',
+              optimizeWaypoints: true,
+              waypoints: [],
+              onReady: result => {
+                setInstructions(result.instructions);
+                setRouteCoordinates(result.coordinates);
+                // Fit the map to the route coordinates
+                if (mapRef.current) {
+                  mapRef.current.fitToCoordinates(result.coordinates, {
+                    edgePadding: {
+                      right: Dimensions.get('window').width / 20,
+                      bottom: Dimensions.get('window').height / 20,
+                      left: Dimensions.get('window').width / 20,
+                      top: Dimensions.get('window').height / 20,
+                    },
+                    animated: true,
+                  });
+                }
+              },
+              onError: errorMessage => {
+                console.log('MapViewDirections Error:', errorMessage);
+                // Alert.alert(
+                //   'Route Error',
+                //   'No route found. Try a different destination.',
+                // );
+                console.log('No route found. Try a different destination');
+        
+              },
+            });
+        
+            directionsService.render();
           } else {
             console.error('No results found');
           }
@@ -239,6 +282,7 @@ const Navigation = ({navigation}) => {
             buttonPositive: 'OK',
           },
         );
+        console.log('hello??', granted, PermissionsAndroid.RESULTS.GRANTED);
         if (granted === PermissionsAndroid.RESULTS.GRANTED) {
           getCurrentLocation();
           trackUserLocation();
@@ -266,6 +310,7 @@ const Navigation = ({navigation}) => {
   const getCurrentLocation = () => {
     Geolocation.getCurrentPosition(
       position => {
+        console.log("get current" , position);
         const userLocation = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
@@ -280,7 +325,7 @@ const Navigation = ({navigation}) => {
           });
         }
       },
-      error => Alert.alert('Error', 'Error getting current location'),
+      error => Alert.alert('Error', 'Error getting current location', error),
       {enableHighAccuracy: true, timeout: 20000, maximumAge: 1000},
     );
   };
@@ -331,7 +376,7 @@ const Navigation = ({navigation}) => {
           direction = 'left';
         }
 
-        console.log('off path hoo gya ha');
+        console.log('off path ');
         Tts.speak(
           ` You are off the path. Please turn ${direction} to get back on track.,`,
         );
@@ -340,7 +385,7 @@ const Navigation = ({navigation}) => {
       }
     } else {
       if (isOffTrack) {
-        console.log(' path par a gya ha');
+        console.log(' path');
         Tts.speak('You are back on the correct path.');
         setIsOffTrack(false);
         setOffTrackNotified(false); // Reset flag when back on track
@@ -423,12 +468,16 @@ const Navigation = ({navigation}) => {
   };
 
   const handleGetDirections = () => {
-    if (destination) {
-      setDestination(null);
-      setInstructions([]);
-      setRouteCoordinates([]);
-      setIsOffTrack(false);
-      setOffTrackNotified(false);
+    // if (destination) {
+    //   setDestination(null);
+    //   setInstructions([]);
+    //   setRouteCoordinates([]);
+    //   setIsOffTrack(false);
+    //   setOffTrackNotified(false);
+    // }
+
+    if(!origin){
+      console.log('Error', 'Please set origin before getting directions.');
     }
 
     if (!origin || !destination) {
@@ -480,8 +529,8 @@ const Navigation = ({navigation}) => {
         ref={mapRef}
         style={styles.map}
         initialRegion={{
-          latitude: origin ? origin.latitude : 33.6844, // Use origin's latitude if available
-          longitude: origin ? origin.longitude : 73.0479, // Use origin's longitude if available
+          latitude: origin ? origin.latitude : 10.1079, // Use origin's latitude if available
+          longitude: origin ? origin.longitude : 76.4489, // Use origin's longitude if available
           latitudeDelta: 0.005, // Zoom in to show current location more clearly
           longitudeDelta: 0.005, // Zoom in to show current location more clearly
         }}>

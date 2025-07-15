@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,17 +10,20 @@ import {
   Image,
 } from 'react-native';
 import SQLite from 'react-native-sqlite-storage';
+import useAuth from './useAuth';
 
 const db = SQLite.openDatabase({
   name: 'contSDB.db',
   location: 'default',
 });
 
-function Registration({navigation}) {
+function Registration({ navigation }) {
   const [name, setName] = useState('');
   const [contactName, setContactName] = useState('');
   const [contactNumber, setContactNumber] = useState('');
   const [contacts, setContacts] = useState([]);
+
+  const { addEmergencyContact } = useAuth();
 
   useEffect(() => {
     db.transaction(tx => {
@@ -30,7 +33,7 @@ function Registration({navigation}) {
         () => {
           console.log('Table created successfully!');
         },
-        error => {
+        (tx, error) => {
           console.error('Error creating table: ', error.message);
         },
       );
@@ -41,7 +44,7 @@ function Registration({navigation}) {
     if (contacts.length < 4 && contactName !== '' && contactNumber !== '') {
       setContacts([
         ...contacts,
-        {name: contactName.toLowerCase(), number: contactNumber},
+        { name: contactName.toLowerCase(), number: contactNumber },
       ]);
       setContactName('');
       setContactNumber('');
@@ -54,6 +57,9 @@ function Registration({navigation}) {
       return;
     }
 
+    addEmergencyContact(contacts);
+    navigation.navigate('Objectdetection');
+
     db.transaction(tx => {
       // Insert the new contacts
       contacts.forEach(contact => {
@@ -63,7 +69,7 @@ function Registration({navigation}) {
           () => {
             console.log('Contact saved successfully!');
           },
-          error => {
+          (tx, error) => {
             console.error('Error saving contact: ', error.message);
           },
         );
@@ -74,10 +80,10 @@ function Registration({navigation}) {
         'DELETE FROM contacts WHERE id NOT IN (SELECT id FROM contacts ORDER BY id DESC LIMIT 4)',
         [],
         () => {
-          // console.log('Older records deleted successfully!');
+          console.log('Older records deleted successfully!');
           navigation.navigate('Objectdetection');
         },
-        error => {
+        (tx, error) => {
           console.error('Error deleting older records: ', error.message);
         },
       );
@@ -142,7 +148,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     margin: 10,
     shadowColor: '#000',
-    shadowOffset: {width: 0, height: 10},
+    shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.2,
     shadowRadius: 20,
     elevation: 10,
@@ -165,7 +171,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: 'center',
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: {width: 2, height: 2},
+    textShadowOffset: { width: 2, height: 2 },
     textShadowRadius: 5,
   },
   label: {

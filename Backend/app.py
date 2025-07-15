@@ -3,13 +3,21 @@ from keras.models import load_model
 from PIL import Image
 import numpy as np
 import io
+import os
 from ultralytics import YOLO
-
+import pickle
+import cv2
+import numpy as np
+from fastapi import FastAPI, File, UploadFile
+from io import BytesIO
+import pickle
 app = Flask(__name__)
 
 # Load the ResNet50V2 model
 model_path = 'ResNet50V2.h5'  # Update with your model path
 resnet_model = load_model(model_path)
+# File to store known faces
+FACE_DATA_FILE = "face_encodings.pkl"
 
 # Define the class names for ResNet50V2
 class_names = [
@@ -19,8 +27,8 @@ class_names = [
 ]
 
 # Load the YOLO model
-yolo_model = YOLO("yolov8x-oiv7.pt")  # Load a pretrained model
-# yolo_model = YOLO("yolov8n.pt")  # Load a pretrained model
+# yolo_model = YOLO("yolov8x-oiv7.pt")  # Load a pretrained model
+yolo_model = YOLO("yolov8n.pt")  # Load a pretrained model
 
 @app.route('/hello', methods=['GET'])
 def hello():
@@ -99,6 +107,8 @@ def currencyprediction():
 #     except Exception as e:
 #         return jsonify({'error': str(e)}), 500
 
+
+
 @app.route('/predict', methods=['POST'])
 def predict():
     # Check if the request contains a file
@@ -139,6 +149,132 @@ def predict():
     print("Predicted class names:", formatted_output)
 
     return jsonify({'predictions': formatted_output})
+
+# Load face encodings from file
+def load_face_encodings():
+    if os.path.exists(FACE_DATA_FILE):
+        with open(FACE_DATA_FILE, "rb") as f:
+            return pickle.load(f)
+    return {"encodings": [], "names": []}
+
+# Save new face encodings
+def save_face_encodings(face_data):
+    with open(FACE_DATA_FILE, "wb") as f:
+        pickle.dump(face_data, f)
+
+# Load stored faces
+face_data = load_face_encodings()
+
+
+# Path to store training images
+TRAINING_DIR = "training_faces"
+if not os.path.exists(TRAINING_DIR):
+    os.makedirs(TRAINING_DIR)
+
+# Path to store trained face model
+MODEL_PATH = "face_model.yml"
+LABELS_PATH = "labels.pkl"
+
+# Load Haarcascade for face detection
+FACE_CASCADE = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+
+# LBPH Face Recognizer
+face_recognizer = cv2.face.LBPHFaceRecognizer_create()
+
+# Load labels
+labels = {}
+
+if os.path.exists(LABELS_PATH):
+    with open(LABELS_PATH, "rb") as f:
+        labels = pickle.load(f)
+
+# Train the model if images exist
+def train_model():
+    images, face_labels = [], []
+    label_id = 0
+    for name in os.listdir(TRAINING_DIR):
+        person_dir = os.path.join(TRAINING_DIR, name)
+        if os.path.isdir(person_dir):
+            for image_name in os.listdir(person_dir):
+                image_path = os.path.join(person_dir, image_name)
+                img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+                faces = FACE_CASCADE.detectMultiScale(img, 1.3, 5)
+                for (x, y, w, h) in faces:
+                    images.append(img[y:y + h, x:x + w])
+                    face_labels.append(label_id)
+            labels[label_id] = name
+            label_id += 1
+
+    if images:
+        face_recognizer.train(images, np.array(face_labels))
+        face_recognizer.save(MODEL_PATH)
+
+        with open(LABELS_PATH, "wb") as f:
+            pickle.dump(labels, f)
+
+# Train the model initially
+if os.path.exists(MODEL_PATH):
+    face_recognizer.read(MODEL_PATH)
+else:
+    train_model()
+
+@app.route('/add_face', methods=['POST'])
+def add_face():
+    # Check if the request contains a file
+    file = request.files['file']# Check if the request contains a file
+     # Get the name field from FormData
+    name = request.form['name']   # Get the name of the person
+
+    print("name - ",name)
+    # Save the uploaded image
+    image_data = file.read()
+    image_array = np.frombuffer(image_data, np.uint8)
+    image = cv2.imdecode(image_array, cv2.IMREAD_GRAYSCALE)
+
+    # Detect face in the image
+    faces = FACE_CASCADE.detectMultiScale(image, 1.3, 5)
+    if faces is None or faces.size == 0:  # ✅ This correctly checks if no faces are found:
+        return {"status": "error", "message": "No face detected"}
+
+    # Save detected face in person's folder
+    person_dir = os.path.join(TRAINING_DIR, name)
+    if not os.path.exists(person_dir):
+        os.makedirs(person_dir)
+
+    image_path = os.path.join(person_dir, f"{len(os.listdir(person_dir)) + 1}.jpg")
+    cv2.imwrite(image_path, image)
+
+    # Retrain model
+    train_model()
+
+    return {"status": "success", "message": f"Face added for {name}"}
+
+@app.route('/recognize_face', methods=['POST'])
+def recognize_face():
+    # Read image
+    file = file = request.files['file']
+    image_data = file.read()
+    image_array = np.frombuffer(image_data, np.uint8)
+    image = cv2.imdecode(image_array, cv2.IMREAD_GRAYSCALE)
+
+    # Detect faces
+    faces = FACE_CASCADE.detectMultiScale(image, 1.3, 5)
+    if faces is None or len(faces) == 0:
+        return {"status": "error", "message": "No face detected"}
+
+    recognized_faces = []
+    for (x, y, w, h) in faces:
+        face = image[y:y + h, x:x + w]
+        label, confidence = face_recognizer.predict(face)
+
+        name = labels.get(label, "Unknown") if confidence < 100 else "Unknown"
+        recognized_faces.append(name)
+
+    return {"status": "success", "recognized_faces": recognized_faces}
+@app.route('/', methods=['GET'])
+def successget():
+    print("hello world")
+    return "Hello World"
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
