@@ -29,7 +29,7 @@ const db = SQLite.openDatabase(
   },
 );
 
-const GOOGLE_MAPS_APIKEY = 'AIzaSyAbC_4_7_KFFn1n4VN36HzhoxgSpONbj8o';
+const GOOGLE_MAPS_APIKEY = 'API_KEY_MAPS';
 
 const Navigation = ({navigation}) => {
   var contactArray;
